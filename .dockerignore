@@ -1,0 +1,12 @@
+.git
+.github
+.serverless
+bin
+dist
+bootstrap
+*.md
+LICENSE
+Makefile
+*.sh
+serverless.yml
+.goreleaser.yaml

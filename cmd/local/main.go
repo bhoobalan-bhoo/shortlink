@@ -14,6 +14,9 @@ import (
 	"github.com/bhoobalan-bhoo/shortlink/internal/store"
 )
 
+// version is overridden at release time via -ldflags "-X main.version=…".
+var version = "dev"
+
 func main() {
 	ctx := context.Background()
 
@@ -39,7 +42,7 @@ func main() {
 		log.Fatalf("init handler: %v", err)
 	}
 
-	log.Printf("listening on %s  (table=%s region=%s profile=%s)", addr, table, region, profile)
+	log.Printf("bhoo-shortlink %s — listening on %s  (table=%s region=%s profile=%s)", version, addr, table, region, profile)
 	if err := http.ListenAndServe(addr, h.Routes()); err != nil {
 		log.Fatal(err)
 	}
