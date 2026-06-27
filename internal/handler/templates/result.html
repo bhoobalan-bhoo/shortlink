@@ -1,0 +1,16 @@
+{{if .Error}}
+  <div class="err">{{.Error}}</div>
+{{else}}
+  <div class="term-out">
+    <div class="line"><span class="gt">&gt; OUTPUT: </span><span class="tw-line val" data-text="{{.ShortURL}}"></span></div>
+    <div class="line"><span class="gt">&gt; STATUS: </span><span class="tw-line val" data-text="ACTIVE"></span></div>
+    <div class="line"><span class="gt">&gt; EXPIRES: </span><span class="tw-line val" data-text="{{.Expires}}"></span></div>
+    <div class="actions reveal" style="opacity:0;">
+      <button type="button" onclick="navigator.clipboard.writeText('{{.ShortURL}}'); this.textContent='COPIED ✓';">COPY</button>
+      <a href="/{{.Slug}}/stats">TRACK</a>
+    </div>
+    <div class="reveal" style="opacity:0;">
+      <img class="qr" src="/{{.Slug}}/qr" alt="QR" width="150" height="150">
+    </div>
+  </div>
+{{end}}

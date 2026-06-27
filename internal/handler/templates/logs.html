@@ -1,0 +1,14 @@
+<div data-slug="{{.Slug}}" data-count="{{len .Clicks}}">
+{{range .Clicks}}
+  <span class="click"
+        data-resolved="{{.Resolved}}"
+        data-ip="{{.IP}}"
+        data-lat="{{printf "%f" .Lat}}"
+        data-lon="{{printf "%f" .Lon}}"
+        data-city="{{.City}}"
+        data-region="{{.Region}}"
+        data-country="{{.Country}}"
+        data-time="{{.Time}}"
+        data-agent="{{.Agent}}"></span>
+{{end}}
+</div>

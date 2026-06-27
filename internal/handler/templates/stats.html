@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>STATS · {{.Slug}}</title>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="flicker-once">
+    <div class="panel-box">
+      <div style="color:var(--text-2); font-size:11px; letter-spacing:.5px;">&gt; TOTAL CLICKS</div>
+      <div class="big">{{.Clicks}}</div>
+      <dl class="kv">
+        <dt>&gt; SHORT LINK</dt>
+        <dd><a href="{{.ShortURL}}">{{.ShortURL}}</a></dd>
+        <dt>&gt; DESTINATION</dt>
+        <dd>{{.LongURL}}</dd>
+        <dt>&gt; CREATED</dt>
+        <dd>{{.Created}}</dd>
+      </dl>
+    </div>
+    <p class="foot">
+      <a href="/">&lt; SHORTEN ANOTHER</a> · <a href="/track-urls">TRACK URLS</a>
+      <span class="rule"></span>
+    </p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SURVEILLANCE · BHOOS</title>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+  </script>
+</head>
+<body class="room flicker-once">
+  <div class="statusbar">
+    <span class="blink">●</span>
+    <span>&gt; SURVEILLANCE MODE ACTIVE</span>
+    <span class="spacer"></span>
+    <span>██ LIVE</span>
+    <span class="spacer"></span>
+    <a href="/">&lt; EXIT</a>
+  </div>
+
+  <canvas id="globe-canvas"></canvas>
+  <div id="sweep"></div>
+  <div id="feed"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <h2>&gt; TRACKED URLS</h2>
+    <div class="rule"></div>
+    {{if .Links}}
+      {{range .Links}}
+        <div class="url-row" data-slug="{{.Slug}}"
+             hx-get="/track-urls/{{.Slug}}/logs" hx-target="#logs-data" hx-swap="innerHTML">
+          <span class="slug">bhoo.in/{{.Slug}}</span>
+          <span class="hits">[{{.Clicks}} HITS]</span>
+        </div>
+      {{end}}
+    {{else}}
+      <div class="url-row">NO TARGETS. <a href="/">CREATE ONE →</a></div>
+    {{end}}
+    <div class="rule"></div>
+    <div class="hint cursor">SELECT TARGET TO ANALYSE_</div>
+  </aside>
+  <button class="toggle-sidebar" id="toggleSidebar">⟨</button>
+
+  <!-- HTMX drops click data here (hidden); the globe reads it -->
+  <div id="logs-data"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    const feedEl = document.getElementById('feed');
+
+    /* ---------------- globe ---------------- */
+    let scene, camera, renderer, world, atmo;
+    const pings = [], arcs = [];
+    let cards = [];
+    let autoSpin = true, spinTarget = null;
+
+    function llToVec(lat, lon, r = 1) {
+      const phi = (90 - lat) * Math.PI / 180;
+      const theta = (lon + 180) * Math.PI / 180;
+      return new THREE.Vector3(
+        -r * Math.sin(phi) * Math.cos(theta),
+         r * Math.cos(phi),
+         r * Math.sin(phi) * Math.sin(theta)
+      );
+    }
+
+    function graticule() {
+      const g = new THREE.Group();
+      const mat = new THREE.LineBasicMaterial({ color: 0x003b0f, transparent: true, opacity: 0.85 });
+      // latitude rings
+      for (let lat = -80; lat <= 80; lat += 20) {
+        const pts = [];
+        for (let lon = 0; lon <= 360; lon += 4) pts.push(llToVec(lat, lon, 1.001));
+        g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+      }
+      // longitude meridians
+      for (let lon = 0; lon < 360; lon += 20) {
+        const pts = [];
+        for (let lat = -90; lat <= 90; lat += 4) pts.push(llToVec(lat, lon, 1.001));
+        g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+      }
+      return g;
+    }
+
+    function buildGlobe() {
+      const canvas = document.getElementById('globe-canvas');
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+      camera.position.set(0, 0, 3.3);
+
+      world = new THREE.Group();
+      scene.add(world);
+
+      // solid dark core so back-side grid is hidden
+      world.add(new THREE.Mesh(
+        new THREE.SphereGeometry(0.99, 48, 48),
+        new THREE.MeshBasicMaterial({ color: 0x010a01 })
+      ));
+      world.add(graticule());
+
+      // atmosphere fresnel glow
+      atmo = new THREE.Mesh(
+        new THREE.SphereGeometry(1.18, 48, 48),
+        new THREE.ShaderMaterial({
+          transparent: true, blending: THREE.AdditiveBlending, side: THREE.BackSide,
+          vertexShader: `varying vec3 vN; void main(){ vN = normalize(normalMatrix*normal);
+            gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+          fragmentShader: `varying vec3 vN; void main(){
+            float i = pow(0.72 - dot(vN, vec3(0.0,0.0,1.0)), 3.0);
+            gl_FragColor = vec4(0.0,1.0,0.26,1.0) * clamp(i,0.0,1.0) * 0.9; }`
+        })
+      );
+      scene.add(atmo);
+
+      // stars
+      const sg = new THREE.BufferGeometry(), sp = [];
+      for (let i = 0; i < 900; i++) {
+        const v = new THREE.Vector3().randomDirection().multiplyScalar(12 + Math.random() * 18);
+        sp.push(v.x, v.y, v.z);
+      }
+      sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+      scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 0.06 })));
+
+      addEventListener('resize', onResize); onResize();
+      animate(0);
+    }
+
+    function onResize() {
+      camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    }
+
+    function animate(t) {
+      requestAnimationFrame(animate);
+      if (spinTarget !== null) {
+        world.rotation.y += (spinTarget - world.rotation.y) * 0.08;
+        if (Math.abs(spinTarget - world.rotation.y) < 0.002) { world.rotation.y = spinTarget; spinTarget = null; }
+      } else if (autoSpin) {
+        world.rotation.y += 0.0015;
+      }
+      // animate ping rings
+      const now = performance.now();
+      for (const p of pings) {
+        for (const ring of p.rings) {
+          const age = (now - ring.born) / 1500;
+          if (age <= 1) { const s = 0.02 + age * 0.5; ring.mesh.scale.set(s, s, s); ring.mesh.material.opacity = (1 - age) * 0.8; }
+        }
+      }
+      // arcs fade
+      for (const a of arcs) { a.line.material.opacity = Math.max(0, a.line.material.opacity - 0.01); }
+      if (atmo) atmo.material.opacity = 0.9 + Math.sin(now / 1300) * 0.1;
+
+      renderer.render(scene, camera);
+      updateCards();
+    }
+
+    function clearTargets() {
+      for (const p of pings) { world.remove(p.dot); p.rings.forEach(r => world.remove(r.mesh)); }
+      pings.length = 0;
+      for (const a of arcs) scene.remove(a.line);
+      arcs.length = 0;
+      cards.forEach(c => c.el.remove()); cards = [];
+    }
+
+    function dropPing(lat, lon) {
+      const v = llToVec(lat, lon, 1.02);
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.022, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0x00ff41 })
+      );
+      dot.position.copy(v); world.add(dot);
+
+      const normal = v.clone().normalize();
+      const rings = [];
+      for (let k = 0; k < 3; k++) {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.9, 1.0, 32),
+          new THREE.MeshBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0.8, side: THREE.DoubleSide })
+        );
+        ring.position.copy(v); ring.lookAt(v.clone().add(normal));
+        ring.scale.set(0.02, 0.02, 0.02);
+        world.add(ring);
+        rings.push({ mesh: ring, born: performance.now() + k * 400 });
+      }
+      pings.push({ dot, rings, v });
+
+      // arc toward screen-center beacon (snapshot world position)
+      const from = v.clone().applyMatrix4(world.matrixWorld);
+      const to = new THREE.Vector3(0, 0, 1.5);
+      const mid = from.clone().lerp(to, 0.5).multiplyScalar(1.6);
+      const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(curve.getPoints(40)),
+        new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0.9 })
+      );
+      scene.add(line); arcs.push({ line });
+      return v;
+    }
+
+    function addCard(v, lines) {
+      const el = document.createElement('div');
+      el.className = 'target-card';
+      document.body.appendChild(el);
+      cards.push({ el, v });
+      // typewriter
+      const full = lines.join('\n'); let i = 0;
+      (function tc() { if (i <= full.length) { el.textContent = full.slice(0, i++); setTimeout(tc, 6); } })();
+    }
+
+    function updateCards() {
+      if (!camera) return;
+      for (const c of cards) {
+        const world4 = c.v.clone().applyMatrix4(world.matrixWorld);
+        const front = world4.z > 0.05;               // on the near hemisphere
+        const ndc = world4.clone().project(camera);
+        c.el.style.opacity = front ? '1' : '0';
+        c.el.style.left = ((ndc.x * 0.5 + 0.5) * innerWidth) + 'px';
+        c.el.style.top = ((-ndc.y * 0.5 + 0.5) * innerHeight) + 'px';
+      }
+    }
+
+    function snapTo(lat, lon) {
+      const v = llToVec(lat, lon);
+      spinTarget = Math.atan2(-v.x, v.z);
+    }
+
+    /* ---------------- feed typing ---------------- */
+    function typeFeed(lines, done) {
+      feedEl.textContent = '';
+      const full = lines.join('\n'); let i = 0;
+      (function tc() {
+        if (i <= full.length) { feedEl.textContent = full.slice(0, i++); setTimeout(tc, 9); }
+        else if (done) done();
+      })();
+    }
+
+    function runSweep() {
+      const s = document.getElementById('sweep');
+      s.classList.remove('run'); void s.offsetWidth; s.classList.add('run');
+    }
+
+    /* ---------------- selection ---------------- */
+    function selectTarget(holder) {
+      const wrap = holder.firstElementChild;
+      const rows = [...holder.querySelectorAll('.click')];
+      clearTargets();
+
+      const geo = rows.map(r => ({
+        resolved: r.dataset.resolved === 'true',
+        lat: parseFloat(r.dataset.lat), lon: parseFloat(r.dataset.lon),
+        ip: r.dataset.ip, city: r.dataset.city, region: r.dataset.region,
+        country: r.dataset.country, time: r.dataset.time, agent: r.dataset.agent
+      })).filter(g => g.resolved && (g.lat || g.lon));
+
+      const head = [
+        "> QUERYING DATABASE...",
+        "> DECRYPTING CLICK DATA...",
+        "> TARGETS FOUND: " + rows.length
+      ];
+
+      typeFeed(head, () => {
+        if (!geo.length) {
+          feedEl.textContent += "\n> NO GEO DATA AVAILABLE.";
+          return;
+        }
+        autoSpin = false;
+        snapTo(geo[0].lat, geo[0].lon);
+        runSweep();
+        geo.slice(0, 12).forEach((g, i) => setTimeout(() => {
+          const v = dropPing(g.lat, g.lon);
+          addCard(v, [
+            "> TARGET ACQUIRED",
+            "> IP   : " + g.ip,
+            "> LOC  : " + g.city + (g.country ? ", " + g.country : ""),
+            "> TIME : " + g.time + " UTC",
+            "> AGENT: " + g.agent
+          ]);
+          feedEl.textContent += `\n> [${i + 1}] ${g.ip}  ${g.city}, ${g.country}`;
+        }, 700 + i * 180));
+        // resume gentle spin after the show
+        setTimeout(() => { autoSpin = true; }, 700 + geo.length * 180 + 1500);
+      });
+    }
+
+    /* ---------------- wiring ---------------- */
+    document.body.addEventListener('htmx:afterSwap', (e) => {
+      if (e.target.id === 'logs-data') selectTarget(e.target);
+    });
+    document.getElementById('sidebar').addEventListener('click', (e) => {
+      const row = e.target.closest('.url-row[data-slug]');
+      if (!row) return;
+      document.querySelectorAll('.url-row').forEach(r => r.classList.remove('active'));
+      row.classList.add('active');
+    });
+    document.getElementById('toggleSidebar').addEventListener('click', () => {
+      const sb = document.getElementById('sidebar');
+      const hidden = sb.style.transform === 'translateX(-100%)';
+      sb.style.transform = hidden ? '' : 'translateX(-100%)';
+      document.getElementById('toggleSidebar').style.left = hidden ? '348px' : '4px';
+    });
+
+    try { buildGlobe(); }
+    catch (err) { feedEl.textContent = "> GLOBE OFFLINE — WebGL unavailable.\n> Click data still loads below."; }
+  </script>
+</body>
+</html>
