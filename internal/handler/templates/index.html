@@ -3,109 +3,62 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BHOOS.EXE</title>
+  <title>bhoo-shortlink</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=VT323&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 </head>
 <body>
-  <main class="flicker-once">
-    <!-- boot sequence -->
-    <div class="boot" id="boot"></div>
-
-    <!-- actual UI (revealed after boot) -->
-    <div id="ui" style="display:none;">
-      <h1 class="logo">🌿 BHOOS.EXE</h1>
-      <p class="tagline cursor">&gt; SHORTEN ANY URL — CALM, FREE &amp; OPEN SOURCE_</p>
-
-      <form hx-post="/shorten" hx-target="#result" hx-swap="innerHTML" hx-disabled-elt="#exec">
-        <label class="field">
-          <span class="gt">&gt;</span>
-          <input type="text" name="url" placeholder="ENTER URL HERE_" autocomplete="off" autofocus required>
-        </label>
-
-        <label class="field dim">
-          <span class="gt">bhoo.in/</span>
-          <input type="text" name="custom" placeholder="CUSTOM-PATH (OPTIONAL)" autocomplete="off">
-        </label>
-
-        <input type="hidden" name="expires" id="expires" value="">
-        <div class="flags" id="flags">
-          <span class="flag on" data-v="">NEVER</span>
-          <span class="flag" data-v="1h">1HR</span>
-          <span class="flag" data-v="1d">1DAY</span>
-          <span class="flag" data-v="7d">7DAYS</span>
-          <span class="flag" data-v="30d">30DAYS</span>
-        </div>
-
-        <button class="btn" id="exec" type="submit">[ EXECUTE SHORTEN ]</button>
-      </form>
-
-      <div id="result"></div>
-
-      <p class="foot">
-        // BUILT WITH GO · <a href="/track-urls">TRACK URLS</a>
-        <span class="rule"></span>→
-      </p>
+  <main class="center">
+    <div class="brand">
+      <h1>🌿 bhoo-shortlink</h1>
+      <p>Shorten any URL — calm, free &amp; open source.</p>
     </div>
+
+    <form hx-post="/shorten" hx-target="#result" hx-swap="innerHTML" hx-disabled-elt="#go">
+      <div class="field">
+        <input class="url-input" type="text" name="url"
+               placeholder="https://your-very-long-url.com/goes/here" autocomplete="off" autofocus required>
+        <input class="custom-input" type="text" name="custom"
+               placeholder="custom-path (optional)" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <p class="label">Link expiry</p>
+        <input type="hidden" name="expires" id="expires" value="">
+        <div class="toggles" id="toggles">
+          <span class="toggle on" data-v="">Never expires</span>
+          <span class="toggle" data-v="1h">1 hour</span>
+          <span class="toggle" data-v="1d">1 day</span>
+          <span class="toggle" data-v="7d">7 days</span>
+          <span class="toggle" data-v="30d">30 days</span>
+        </div>
+      </div>
+
+      <button class="btn" id="go" type="submit">Shorten<span class="progress"></span></button>
+    </form>
+
+    <div id="result"></div>
+
+    <p class="footer">Built with Go &nbsp;·&nbsp; <a href="/track-urls">Track your URLs →</a></p>
   </main>
 
   <script>
-    // ---- boot sequence ----
-    const bootLines = [
-      "> INITIALIZING BHOOS v1.0...",
-      "> CONNECTION SECURE ██████████ 100%",
-      "> READY."
-    ];
-    const boot = document.getElementById('boot');
-    let bi = 0;
-    (function bootStep() {
-      if (bi < bootLines.length) {
-        boot.textContent += (bi ? "\n" : "") + bootLines[bi++];
-        setTimeout(bootStep, 400);
-      } else {
-        setTimeout(() => {
-          boot.style.display = 'none';
-          document.getElementById('ui').style.display = 'block';
-          document.querySelector('input[name=url]').focus();
-        }, 350);
-      }
-    })();
-
-    // ---- expiry flags ----
-    document.getElementById('flags').addEventListener('click', (e) => {
-      const f = e.target.closest('.flag');
-      if (!f) return;
-      document.querySelectorAll('#flags .flag').forEach(x => x.classList.remove('on'));
-      f.classList.add('on');
-      document.getElementById('expires').value = f.dataset.v;
+    document.getElementById('toggles').addEventListener('click', (e) => {
+      const t = e.target.closest('.toggle');
+      if (!t) return;
+      document.querySelectorAll('#toggles .toggle').forEach(x => x.classList.remove('on'));
+      t.classList.add('on');
+      document.getElementById('expires').value = t.dataset.v;
     });
-
-    // ---- button feedback ----
-    const exec = document.getElementById('exec');
+    const go = document.getElementById('go');
     document.body.addEventListener('htmx:beforeRequest', (e) => {
-      if (e.detail.elt.tagName === 'FORM') exec.textContent = '> SHORTENING...';
+      if (e.detail.elt.tagName === 'FORM') { go.classList.add('loading'); go.firstChild.textContent = 'Shortening...'; }
     });
-
-    // ---- typewriter for the output ----
     document.body.addEventListener('htmx:afterSwap', (e) => {
-      if (e.target.id !== 'result') return;
-      exec.textContent = '[ EXECUTE SHORTEN ]';
-      const lines = e.target.querySelectorAll('.tw-line');
-      let li = 0;
-      (function typeLine() {
-        if (li >= lines.length) { e.target.querySelectorAll('.reveal').forEach(x => x.style.opacity = 1); return; }
-        const el = lines[li++];
-        const full = el.dataset.text || '';
-        el.textContent = '';
-        let ci = 0;
-        (function typeChar() {
-          if (ci <= full.length) { el.textContent = full.slice(0, ci++); setTimeout(typeChar, 14); }
-          else { setTimeout(typeLine, 90); }
-        })();
-      })();
+      if (e.target.id === 'result') { go.classList.remove('loading'); go.firstChild.textContent = 'Shorten'; }
     });
   </script>
 </body>

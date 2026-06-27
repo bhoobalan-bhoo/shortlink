@@ -14,12 +14,13 @@ import (
 // Location is the resolved place for an IP. Resolved is false only when the
 // lookup itself fails (network/timeout/non-success response).
 type Location struct {
-	City     string
-	Region   string
-	Country  string
-	Lat      float64
-	Lon      float64
-	Resolved bool
+	City        string
+	Region      string
+	Country     string
+	CountryCode string
+	Lat         float64
+	Lon         float64
+	Resolved    bool
 }
 
 var client = &http.Client{Timeout: 2 * time.Second}
@@ -36,7 +37,7 @@ func Lookup(ctx context.Context, ip string) Location {
 		query = "" // empty path -> ip-api resolves this machine's public IP
 	}
 
-	url := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,country,regionName,city,lat,lon", query)
+	url := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,country,countryCode,regionName,city,lat,lon", query)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return Location{City: "UNKNOWN", Resolved: false}
@@ -48,22 +49,24 @@ func Lookup(ctx context.Context, ip string) Location {
 	defer resp.Body.Close()
 
 	var body struct {
-		Status     string  `json:"status"`
-		Country    string  `json:"country"`
-		RegionName string  `json:"regionName"`
-		City       string  `json:"city"`
-		Lat        float64 `json:"lat"`
-		Lon        float64 `json:"lon"`
+		Status      string  `json:"status"`
+		Country     string  `json:"country"`
+		CountryCode string  `json:"countryCode"`
+		RegionName  string  `json:"regionName"`
+		City        string  `json:"city"`
+		Lat         float64 `json:"lat"`
+		Lon         float64 `json:"lon"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil || body.Status != "success" {
 		return Location{City: "UNKNOWN", Resolved: false}
 	}
 	return Location{
-		City:     body.City,
-		Region:   body.RegionName,
-		Country:  body.Country,
-		Lat:      body.Lat,
-		Lon:      body.Lon,
-		Resolved: true,
+		City:        body.City,
+		Region:      body.RegionName,
+		Country:     body.Country,
+		CountryCode: body.CountryCode,
+		Lat:         body.Lat,
+		Lon:         body.Lon,
+		Resolved:    true,
 	}
 }

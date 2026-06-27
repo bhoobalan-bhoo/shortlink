@@ -10,8 +10,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 
-	"github.com/bhoobalan/shortlink/internal/handler"
-	"github.com/bhoobalan/shortlink/internal/store"
+	"github.com/bhoobalan-bhoo/shortlink/internal/handler"
+	"github.com/bhoobalan-bhoo/shortlink/internal/store"
 )
 
 func main() {

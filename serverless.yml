@@ -1,0 +1,42 @@
+service: bhoo-shortlink
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: provided.al2023
+  architecture: arm64
+  region: ${opt:region, 'ap-south-1'}
+  stage: ${opt:stage, 'prod'}
+  memorySize: 256
+  timeout: 10
+  # AWS_PROFILE=bhoo is exported by deploy.sh; serverless picks it up.
+  environment:
+    TABLE_NAME: bhoo-urls
+    CLICKS_TABLE: bhoo-clicks
+    BASE_URL: ${env:BASE_URL, 'https://go.bhoobalan.in'}
+    ADMIN_TOKEN: ${env:ADMIN_TOKEN, ''}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - arn:aws:dynamodb:${self:provider.region}:*:table/bhoo-urls
+            - arn:aws:dynamodb:${self:provider.region}:*:table/bhoo-urls/index/*
+            - arn:aws:dynamodb:${self:provider.region}:*:table/bhoo-clicks
+
+package:
+  patterns:
+    - '!./**'      # ship nothing by default…
+    - bootstrap    # …except the compiled Go binary (templates/static are embedded)
+
+functions:
+  api:
+    handler: bootstrap
+    events:
+      - httpApi: '*'   # catch-all: all methods + paths go to the app router

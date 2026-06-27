@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
-	"github.com/bhoobalan/shortlink/internal/shortid"
+	"github.com/bhoobalan-bhoo/shortlink/internal/shortid"
 )
 
 const (
@@ -49,6 +49,7 @@ type ClickEvent struct {
 	City      string  `dynamodbav:"city,omitempty"`
 	Region    string  `dynamodbav:"region,omitempty"`
 	Country   string  `dynamodbav:"country,omitempty"`
+	CC        string  `dynamodbav:"cc,omitempty"`
 	Lat       float64 `dynamodbav:"lat,omitempty"`
 	Lon       float64 `dynamodbav:"lon,omitempty"`
 	Resolved  bool    `dynamodbav:"resolved"`

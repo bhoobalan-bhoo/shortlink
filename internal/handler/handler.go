@@ -15,8 +15,8 @@ import (
 
 	qrcode "github.com/skip2/go-qrcode"
 
-	"github.com/bhoobalan/shortlink/internal/geo"
-	"github.com/bhoobalan/shortlink/internal/store"
+	"github.com/bhoobalan-bhoo/shortlink/internal/geo"
+	"github.com/bhoobalan-bhoo/shortlink/internal/store"
 )
 
 //go:embed templates/*.html
@@ -130,15 +130,15 @@ type resultData struct {
 func expiryLabel(v string) string {
 	switch v {
 	case "1h":
-		return "IN 1 HOUR"
+		return "in 1 hour"
 	case "1d":
-		return "IN 1 DAY"
+		return "in 1 day"
 	case "7d":
-		return "IN 7 DAYS"
+		return "in 7 days"
 	case "30d":
-		return "IN 30 DAYS"
+		return "in 30 days"
 	}
-	return "NEVER"
+	return "Never"
 }
 
 func (h *Handler) shorten(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +217,7 @@ func (h *Handler) redirect(w http.ResponseWriter, r *http.Request) {
 		City:      loc.City,
 		Region:    loc.Region,
 		Country:   loc.Country,
+		CC:        loc.CountryCode,
 		Lat:       loc.Lat,
 		Lon:       loc.Lon,
 		Resolved:  loc.Resolved,
@@ -291,10 +292,12 @@ func (h *Handler) trackURLs(w http.ResponseWriter, r *http.Request) {
 // clickView is a row in the logs fragment.
 type clickView struct {
 	Time     string
+	Ts       int64
 	IP       string
 	City     string
 	Region   string
 	Country  string
+	CC       string
 	Lat      float64
 	Lon      float64
 	Resolved bool
@@ -315,11 +318,13 @@ func (h *Handler) trackLogs(w http.ResponseWriter, r *http.Request) {
 	rows := make([]clickView, 0, len(clicks))
 	for _, c := range clicks {
 		rows = append(rows, clickView{
-			Time:     time.UnixMilli(c.TS).UTC().Format("15:04:05 02-Jan"),
+			Time:     time.UnixMilli(c.TS).UTC().Format("02 Jan 2006 · 15:04"),
+			Ts:       c.TS,
 			IP:       c.IP,
 			City:     c.City,
 			Region:   c.Region,
 			Country:  c.Country,
+			CC:       c.CC,
 			Lat:      c.Lat,
 			Lon:      c.Lon,
 			Resolved: c.Resolved,
